@@ -18,7 +18,7 @@ import discord
 import random
 import json
 import os
-from discord.ext import commandsS
+from discord.ext import commands
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 
