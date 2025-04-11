@@ -4,7 +4,7 @@ import json
 import os
 from discord.ext import commands
 
-TOKEN = "MTM1MjAyMzI1MjIwMDg1MzU0NA.G5YZVS.4lc5dDNXT8sLC7lpuoZySZ23jEmyfUOpU0a7xo"
+client.run(os.getenv("DISCORD_TOKEN"))
 
 intents = discord.Intents.default()
 intents.members = True  # ✅ Required to get display names
