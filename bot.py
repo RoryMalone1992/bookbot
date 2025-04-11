@@ -196,5 +196,6 @@ async def coven(ctx):
     else:
         await ctx.send(result)
 
+
 # Run the bot
 bot.run(TOKEN)
