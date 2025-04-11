@@ -1,8 +1,24 @@
+from flask import Flask
+from threading import Thread
+
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "I'm alive"
+
+def run():
+    app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+
 import discord
 import random
 import json
 import os
-from discord.ext import commands
+from discord.ext import commandsS
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 
@@ -196,6 +212,8 @@ async def coven(ctx):
     else:
         await ctx.send(result)
 
+# Keep Alive
+keep_alive()
 
 # Run the bot
 bot.run(TOKEN)
