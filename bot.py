@@ -1,12 +1,13 @@
 from flask import Flask
-from threading import Thread
 import os
 import threading
+import discord
+import random
+import json
+from discord.ext import commands
 
-def run_bot():
-    bot.run(TOKEN)
-
-app = Flask('')
+# === Flask App for Uptime Ping ===
+app = Flask(__name__)
 
 
 @app.route('/')
@@ -14,28 +15,28 @@ def home():
     return "I'm alive"
 
 
-def keep_alive():
+def run_flask():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
 
-import discord
-import random
-import json
-from discord.ext import commands
+# Start Flask in background
+threading.Thread(target=run_flask).start()
 
-TOKEN = os.getenv("DISCORD_TOKEN")
+# === Load Token & Setup Bot ===
+TOKEN = os.environ.get("DISCORD_TOKEN")
+print(f"🔐 Token loaded? {'Yes' if TOKEN else 'No'}")
 
 intents = discord.Intents.default()
-intents.members = True  # ✅ Required to get display names
+intents.members = True
 intents.messages = True
-intents.dm_messages = True  # Allows the bot to receive DMs
+intents.dm_messages = True
 intents.message_content = True
 intents.guilds = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Book swap partner assignments
+# === Book Swap Data ===
 book_swap_partners = {
     "333312489750265860": "1348067676899246132",
     "1348067676899246132": "406963070615814174",
@@ -49,7 +50,6 @@ book_swap_partners = {
     "222510172705259521": "118143857895407619"
 }
 
-# IDs to real names mapping
 user_real_names = {
     "333312489750265860": "Jen",
     "1348067676899246132": "Natalie",
@@ -64,6 +64,7 @@ user_real_names = {
 }
 
 
+# === Bot Events & Commands ===
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
@@ -71,104 +72,60 @@ async def on_ready():
 
 @bot.command()
 async def bookswap(ctx):
-    """Sends the user a DM with their book swap partner."""
-    user_id = ctx.author.id  # Get the actual user ID
-    print(
-        f"User ID (from command): {user_id}")  # Log the user ID for debugging
-
-    # Convert the user ID to a string to match the dictionary keys
-    user_id_str = str(user_id)
-    print(
-        f"Checking if {user_id_str} is in book_swap_partners")  # Log the check
-
-    # Debugging: Print all the keys in the book_swap_partners
-    print(f"Book swap partners keys: {list(book_swap_partners.keys())}"
-          )  # Log the keys in the dictionary
-
+    user_id_str = str(ctx.author.id)
     if user_id_str in book_swap_partners:
-        partner_id = book_swap_partners[user_id_str]  # Get the partner's ID
-        partner_name = user_real_names.get(
-            partner_id, f"<@{partner_id}>")  # Get real name if available
-
+        partner_id = book_swap_partners[user_id_str]
+        partner_name = user_real_names.get(partner_id, f"<@{partner_id}>")
         try:
             await ctx.author.send(
                 f"📚 Your book swap partner is **{partner_name}**! I'm sure you'll pick the perfect book for them! 🎁"
             )
-            await ctx.message.add_reaction(
-                "👍")  # React with a thumbs up in the channel
+            await ctx.message.add_reaction("👍")
         except discord.Forbidden:
             await ctx.send(
                 "❌ I can't DM you! Please enable DMs and try again.",
                 delete_after=5)
     else:
-        print(f"{user_id_str} was not found in book_swap_partners."
-              )  # Log if user is not in the list
         await ctx.send("❌ You're not in the book swap list!", delete_after=5)
 
 
 @bot.event
 async def on_message(message):
-    """Forwards messages from gifters to their assigned giftees."""
     if message.author == bot.user:
-        return  # Ignore bot messages
+        return
 
-    if isinstance(message.channel, discord.DMChannel):  # If message is a DM
-        sender_id = str(
-            message.author.id)  # Convert the ID to a string for comparison
-
-        print(f"Sender ID: {sender_id}"
-              )  # Debug log to check the sender ID being used
-
+    if isinstance(message.channel, discord.DMChannel):
+        sender_id = str(message.author.id)
         if sender_id in book_swap_partners:
             giftee_id = book_swap_partners[sender_id]
-            print(f"Giftee ID: {giftee_id}")  # Debug log to show the giftee ID
-
-            # Try to send the message to the giftee directly
-            giftee = await bot.fetch_user(
-                int(giftee_id))  # Use fetch_user instead of get_user
-            print(f"Searching for giftee: {giftee} (ID: {giftee_id})"
-                  )  # Debug log to check giftee lookup
-
+            giftee = await bot.fetch_user(int(giftee_id))
             if giftee:
                 try:
                     await giftee.send(
                         f"📩 Message from your gifter: {message.content}")
                     await message.author.send("✅ Your message has been sent!")
-                    print(f"Message sent to giftee: {giftee.name}"
-                          )  # Debug log when the message is successfully sent
                 except discord.Forbidden:
                     await message.author.send(
                         "❌ Your giftee has DMs disabled. Try another method.")
-                    print(
-                        f"Failed to send message to {giftee.name} due to DMs being disabled."
-                    )
             else:
                 await message.author.send(
                     "❌ The giftee could not be found. Please check the ID.")
-                print(f"Giftee not found for ID: {giftee_id}")
-
         else:
             await message.author.send(
                 "❌ You are not in the book swap list or your giftee is unavailable."
             )
-            print(f"Sender ID {sender_id} is not in the book swap list.")
-
-    await bot.process_commands(message)  # Ensure commands still work
+    await bot.process_commands(message)
 
 
-# File path for saved witch names
+# === Witch Name Feature ===
 SAVE_FILE = "witch_names.json"
 
-# Load saved names if file exists
 if os.path.exists(SAVE_FILE):
     with open(SAVE_FILE, "r") as f:
-        witch_names = json.load(f)
-        # Convert string keys back to integers (user IDs)
-        witch_names = {int(k): v for k, v in witch_names.items()}
+        witch_names = {int(k): v for k, v in json.load(f).items()}
 else:
     witch_names = {}
 
-# Name lists
 first_names = [
     "Eira", "Seraphina", "Lilith", "Morgana", "Rowena", "Nyx", "Thalassa",
     "Ophelia", "Celeste", "Isolde", "Morwen", "Vespera", "Althea", "Bryony",
@@ -180,22 +137,20 @@ first_names = [
 dark_words = [
     "Shadow", "Ash", "Moon", "Night", "Blood", "Thorn", "Dark", "Storm",
     "Dusk", "Frost", "Grave", "Obsidian", "Raven", "Mist", "Echo", "Hollow",
-    "Wraith", "Dusk", "Drift", "Phantom", "Chill", "Shade", "Ember", "Glare",
-    "Crypt", "Fog", "Iron", "Whisper", "Black", "Shiver"
+    "Wraith", "Drift", "Phantom", "Chill", "Shade", "Ember", "Glare", "Crypt",
+    "Fog", "Iron", "Whisper", "Black", "Shiver"
 ]
 
 witchy_words = [
     "brew", "veil", "whisper", "flame", "charm", "hex", "gleam", "curse",
     "shroud", "spark", "chant", "glow", "bite", "dust", "glee", "flicker",
-    "ember", "glimmer", "gleam", "kiss", "flare", "howl", "tide", "blade",
-    "spell", "song", "gleam", "sigh", "bloom", "aura", "beak"
+    "ember", "glimmer", "kiss", "flare", "howl", "tide", "blade", "spell",
+    "song", "sigh", "bloom", "aura", "beak"
 ]
 
 
 def generate_witch_name():
-    first = random.choice(first_names)
-    last = random.choice(dark_words) + random.choice(witchy_words)
-    return f"{first} {last}"
+    return f"{random.choice(first_names)} {random.choice(dark_words)}{random.choice(witchy_words)}"
 
 
 def save_witch_names():
@@ -233,19 +188,16 @@ async def rerollwitchname(ctx):
 
 @bot.command()
 async def coven(ctx):
-    """Lists all users with their server display name and witch name."""
     if not witch_names:
         await ctx.send("🧹 No witches have claimed their names yet!")
         return
 
     result_lines = ["🔮 **Coven Members** 🔮"]
-
     for user_id, witch_name in witch_names.items():
         member = ctx.guild.get_member(user_id)
         display_name = member.display_name if member else f"User ID {user_id}"
         result_lines.append(f"**{display_name}** — *{witch_name}*")
 
-    # Discord message limit is 2000 characters; batch if needed
     result = "\n".join(result_lines)
     if len(result) > 2000:
         for chunk in [result[i:i + 1990] for i in range(0, len(result), 1990)]:
@@ -254,9 +206,10 @@ async def coven(ctx):
         await ctx.send(result)
 
 
-# Keep Alive
-keep_alive()
-
-
-# Run the bot
-threading.Thread(target=run_bot).start()
+# === Final Bot Startup ===
+if __name__ == "__main__":
+    if TOKEN:
+        print("🚀 Starting Discord bot...")
+        bot.run(TOKEN)
+    else:
+        print("❌ DISCORD_TOKEN not found in environment variables!")
