@@ -1,6 +1,10 @@
 from flask import Flask
 from threading import Thread
 import os
+import threading
+
+def run_bot():
+    bot.run(TOKEN)
 
 app = Flask('')
 
@@ -253,5 +257,6 @@ async def coven(ctx):
 # Keep Alive
 keep_alive()
 
+
 # Run the bot
-bot.run(TOKEN)
+threading.Thread(target=run_bot).start()
